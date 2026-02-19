@@ -1,0 +1,14 @@
+{
+  "card_id": "cc8ec688122aedba30b913f23574d9d0",
+  "question": "What is Python?",
+  "answer": "Python is a high-level programming language.",
+  "interval": 1,
+  "e_factor": 2.5,
+  "consecutive_correct": 1,
+  "due_date": "2026-02-19",
+  "mastered": false,
+  "last_reviewed": "2026-02-18",
+  "total_reviews": 1,
+  "correct_reviews": 1,
+  "created_date": "2026-02-18"
+}

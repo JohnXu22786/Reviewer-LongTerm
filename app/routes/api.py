@@ -45,10 +45,10 @@ def list_files():
 
     if not os.path.exists(KNOWLEDGE_DIR):
         os.makedirs(KNOWLEDGE_DIR)
-        print(f"📁 Creating directory: {KNOWLEDGE_DIR}")
+        print(f"[DIR] Creating directory: {KNOWLEDGE_DIR}")
 
     files = [f for f in os.listdir(KNOWLEDGE_DIR) if f.endswith('.json')]
-    print(f"📄 Scanned {len(files)} JSON files: {files}")
+    print(f"[FILES] Scanned {len(files)} JSON files: {files}")
 
     # 不再检查是否有待复习的题目，因为每次都从零开始
     file_list = []
@@ -114,9 +114,9 @@ def load_data():
         if data_modified:
             with open(json_path, 'w', encoding='utf-8') as f:
                 json.dump(raw_data, f, ensure_ascii=False, indent=2)
-            print(f"   💾 Added IDs to {len(items)} items and saved to {file_name}")
+            print(f"   [SAVE] Added IDs to {len(items)} items and saved to {file_name}")
 
-        print(f"   📊 Loaded {len(items)} items from {file_name}.")
+        print(f"   [LOAD] Loaded {len(items)} items from {file_name}.")
         return jsonify({"items": items, "total": len(items)})
 
     except Exception as e:
@@ -179,7 +179,7 @@ def update_item():
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(raw_data, f, ensure_ascii=False, indent=2)
 
-        print(f"✅ Updated item in {file_name}: {item_id}")
+        print(f"[UPDATE] Updated item in {file_name}: {item_id}")
         return jsonify({"success": True, "new_id": item_id})  # 返回原来的ID
 
     except Exception as e:
@@ -218,7 +218,7 @@ def create_knowledge_base():
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump([], f, ensure_ascii=False, indent=2)
 
-        print(f"✅ Created new knowledge base: {file_name}")
+        print(f"[CREATE] Created new knowledge base: {file_name}")
         return jsonify({"success": True, "file_name": file_name})
 
     except Exception as e:
@@ -270,7 +270,7 @@ def save_all_items():
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(processed_items, f, ensure_ascii=False, indent=2)
 
-        print(f"✅ Saved {len(processed_items)} items to {file_name}")
+        print(f"[SAVE] Saved {len(processed_items)} items to {file_name}")
         return jsonify({"success": True, "count": len(processed_items)})
 
     except Exception as e:

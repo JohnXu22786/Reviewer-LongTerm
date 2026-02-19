@@ -7,13 +7,106 @@ Handles review actions and state management, implementing the
 
 import os
 import json
+import logging
 from flask import Blueprint, request, jsonify, current_app, session
 from ..algorithms.spaced_repetition import SpacedRepetitionEngine
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Import plugin function
+try:
+    from plugin_core import call_plugin_func
+    PLUGIN_AVAILABLE = True
+    logger.info("Plugin system available. Long-term storage enabled.")
+except ImportError:
+    PLUGIN_AVAILABLE = False
+    call_plugin_func = None
+    logger.warning("Plugin system not available. Long-term storage disabled.")
 
 # Create review blueprint
 review_bp = Blueprint('review', __name__, url_prefix='/api')
 
 # No state manager needed for one-time program
+
+
+def _get_plugin_state_for_engine(knowledge_file: str, plugin_data_dir: str) -> dict:
+    """
+    Get plugin state and convert to engine-compatible format.
+
+    Args:
+        knowledge_file: Knowledge base file name
+        plugin_data_dir: Plugin data directory
+
+    Returns:
+        Dictionary in engine-compatible format or None if not available
+    """
+    if not PLUGIN_AVAILABLE or not call_plugin_func:
+        return None
+
+    try:
+        # Try to get all cards from plugin
+        plugin_cards = call_plugin_func(
+            "learning_reviewer",
+            "get_cards",
+            kb_name=knowledge_file,
+            data_dir=plugin_data_dir
+        )
+
+        if not plugin_cards:
+            return None
+
+        # Convert plugin card states to engine format
+        question_map = []
+        mastered_items = 0
+        dynamic_sequence = []
+
+        for card in plugin_cards:
+            card_id = card.get('id')
+            if not card_id:
+                continue
+
+            # Extract long-term parameters
+            long_term_params = card.get('longTermParams', {})
+            review_count = long_term_params.get('reviewCount', 0)
+            consecutive_correct = long_term_params.get('consecutiveCorrect', 0)
+            learning_step = long_term_params.get('learningStep', 0)
+            mastered = long_term_params.get('mastered', False)
+            wrong_count = long_term_params.get('wrongCount', 0)
+            correct_count = long_term_params.get('correctCount', 0)
+
+            # Create engine-compatible state entry
+            state_data = {
+                'id': card_id,
+                'question': card.get('question', ''),
+                'answer': card.get('answer', ''),
+                '_reviewCount': review_count,
+                '_consecutiveCorrect': consecutive_correct,
+                '_learningStep': learning_step,
+                '_mastered': mastered,
+                '_wrongCount': wrong_count,
+                '_correctCount': correct_count
+            }
+
+            question_map.append([card_id, state_data])
+
+            if mastered:
+                mastered_items += 1
+            else:
+                # Add non-mastered items to dynamic sequence
+                dynamic_sequence.append(card_id)
+
+        return {
+            'questionMap': question_map,
+            'masteredItems': mastered_items,
+            'totalItems': len(plugin_cards),
+            'dynamicSequence': dynamic_sequence
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get plugin state for {knowledge_file}: {e}")
+        return None
 
 
 def get_review_engine(knowledge_file: str, force_new: bool = False) -> SpacedRepetitionEngine:
@@ -22,9 +115,34 @@ def get_review_engine(knowledge_file: str, force_new: bool = False) -> SpacedRep
 
     Retrieves engine state from Flask session if available and force_new is False,
     otherwise creates a new engine. Items are cached in session to avoid repeated file reads.
+
+    Also initializes plugin system for long-term storage if available.
     """
     items_key = f'review_items_{knowledge_file}'
     engine_key = f'review_engine_{knowledge_file}'
+
+    # Initialize plugin system for long-term storage
+    if PLUGIN_AVAILABLE:
+        try:
+            # Get knowledge base directory for plugin data storage
+            knowledge_dir = current_app.config.get('KNOWLEDGE_DIR', 'D:\\knowledge_bases')
+            # Create .data subdirectory for plugin storage
+            plugin_data_dir = os.path.join(knowledge_dir, '.data')
+            os.makedirs(plugin_data_dir, exist_ok=True)
+
+            # Configure plugin directory (relative to Reviewer-LongTerm)
+            # The plugin system will look for plugins in the plugins directory
+            plugin_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                                     'plugins')
+            if os.path.exists(plugin_dir):
+                from plugin_core import set_plugin_directory
+                set_plugin_directory(plugin_dir)
+                logger.info(f"Plugin directory configured: {plugin_dir}")
+            else:
+                logger.warning(f"Plugin directory not found: {plugin_dir}")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize plugin system: {e}")
 
     # Load knowledge base items (cache in session)
     if items_key not in session:
@@ -68,7 +186,28 @@ def get_review_engine(knowledge_file: str, force_new: bool = False) -> SpacedRep
     if force_new or engine_key not in session:
         # Create fresh engine instance
         engine = SpacedRepetitionEngine()
-        engine.initialize_from_items(items)
+
+        # Try to load long-term state from plugin for data synchronization
+        saved_states = None
+        if PLUGIN_AVAILABLE and call_plugin_func:
+            try:
+                # Get knowledge base directory for plugin data storage
+                knowledge_dir = current_app.config.get('KNOWLEDGE_DIR', 'D:\\knowledge_bases')
+                plugin_data_dir = os.path.join(knowledge_dir, '.data')
+
+                # Get plugin state in engine-compatible format
+                saved_states = _get_plugin_state_for_engine(knowledge_file, plugin_data_dir)
+
+                if saved_states:
+                    logger.info(f"Loaded plugin state for {knowledge_file}: {saved_states['masteredItems']} mastered items")
+                else:
+                    logger.info(f"No plugin state found for {knowledge_file}, starting fresh")
+
+            except Exception as e:
+                logger.warning(f"Failed to load plugin state for {knowledge_file}: {e}")
+                # Continue without plugin state - engine will start fresh
+
+        engine.initialize_from_items(items, saved_states)
         # Save initial state to session
         session[engine_key] = engine.to_serializable()
     else:
@@ -157,6 +296,61 @@ def handle_review_action():
         # Save updated engine state to session
         engine_key = f'review_engine_{knowledge_file}'
         session[engine_key] = engine.to_serializable()
+
+        # Update long-term storage via plugin (dual storage mechanism)
+        if PLUGIN_AVAILABLE and call_plugin_func:
+            try:
+                # Get knowledge base directory for plugin data storage
+                knowledge_dir = current_app.config.get('KNOWLEDGE_DIR', 'D:\\knowledge_bases')
+                plugin_data_dir = os.path.join(knowledge_dir, '.data')
+
+                # Map action to plugin parameters
+                if action == 'recognized':
+                    # Option 1: Use update_review with is_correct=True
+                    plugin_result = call_plugin_func(
+                        "learning_reviewer",
+                        "update_review",
+                        kb_name=knowledge_file,
+                        card_id=item_id,
+                        is_correct=True,
+                        data_dir=plugin_data_dir
+                    )
+                    # Option 2: Alternatively use handle_remember_action
+                    # plugin_result = call_plugin_func(
+                    #     "learning_reviewer",
+                    #     "handle_remember_action",
+                    #     kb_name=knowledge_file,
+                    #     card_id=item_id,
+                    #     data_dir=plugin_data_dir
+                    # )
+                elif action == 'forgotten':
+                    # Option 1: Use update_review with is_correct=False
+                    plugin_result = call_plugin_func(
+                        "learning_reviewer",
+                        "update_review",
+                        kb_name=knowledge_file,
+                        card_id=item_id,
+                        is_correct=False,
+                        data_dir=plugin_data_dir
+                    )
+                    # Option 2: Alternatively use handle_forget_action
+                    # plugin_result = call_plugin_func(
+                    #     "learning_reviewer",
+                    #     "handle_forget_action",
+                    #     kb_name=knowledge_file,
+                    #     card_id=item_id,
+                    #     data_dir=plugin_data_dir
+                    # )
+
+                if plugin_result:
+                    logger.info(f"Plugin update successful for {item_id}: {action}")
+                else:
+                    logger.warning(f"Plugin update returned no result for {item_id}")
+
+            except Exception as e:
+                # Log error but don't fail the main operation
+                logger.error(f"Plugin update failed for {item_id} ({action}): {e}")
+                # Continue with normal flow - plugin failure shouldn't break the review
 
         # Get next item details
         next_item = None

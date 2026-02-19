@@ -1,0 +1,21 @@
+{
+  "name": "learning_reviewer",
+  "version": "1.0.0",
+  "description": "基于间隔重复算法的学习复习插件",
+  "author": "Reviewer-LongTerm Team",
+  "functions": [
+    "initialize_card",
+    "update_card_review",
+    "get_due_cards",
+    "calculate_next_review_date",
+    "get_card_stats"
+  ],
+  "config": {
+    "data_dir": ".data",
+    "default_e_factor": 2.5,
+    "min_e_factor": 1.3,
+    "max_interval": 365,
+    "auto_master_threshold": 3.0,
+    "auto_master_consecutive": 7
+  }
+}
