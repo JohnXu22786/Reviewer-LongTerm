@@ -7,6 +7,14 @@ import hashlib
 import json
 from flask import Blueprint, request, jsonify, current_app
 
+# Import plugin function for long-term storage
+try:
+    from plugin_core import call_plugin_func
+    PLUGIN_AVAILABLE = True
+except ImportError:
+    PLUGIN_AVAILABLE = False
+    call_plugin_func = None
+
 # Create API blueprint
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -180,6 +188,17 @@ def update_item():
             json.dump(raw_data, f, ensure_ascii=False, indent=2)
 
         print(f"[UPDATE] Updated item in {file_name}: {item_id}")
+
+        # Update long-term storage via plugin
+        if PLUGIN_AVAILABLE and call_plugin_func:
+            call_plugin_func(
+                "learning_reviewer",
+                "update_card_review",
+                card_id=item_id,
+                success=True,
+                review_date=None
+            )
+
         return jsonify({"success": True, "new_id": item_id})  # 返回原来的ID
 
     except Exception as e:
@@ -245,7 +264,7 @@ def save_all_items():
         # Ensure directory exists
         os.makedirs(KNOWLEDGE_DIR, exist_ok=True)
 
-        # Process items, preserving existing IDs if they exist
+        # Prepare items for saving
         processed_items = []
         for item in items:
             question = item.get('question', '').strip()
@@ -271,6 +290,20 @@ def save_all_items():
             json.dump(processed_items, f, ensure_ascii=False, indent=2)
 
         print(f"[SAVE] Saved {len(processed_items)} items to {file_name}")
+
+        # Update long-term storage via plugin
+        if PLUGIN_AVAILABLE and call_plugin_func:
+            for item in processed_items:
+                item_id = item.get('id')
+                if item_id:
+                    call_plugin_func(
+                        "learning_reviewer",
+                        "update_card_review",
+                        card_id=item_id,
+                        success=True,
+                        review_date=None
+                    )
+
         return jsonify({"success": True, "count": len(processed_items)})
 
     except Exception as e:

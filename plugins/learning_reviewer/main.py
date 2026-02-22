@@ -10,6 +10,23 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 import hashlib
+import logging
+
+# Import longterm engine
+try:
+    # Try relative import first (for package usage)
+    from .longterm_engine import SpacedRepetitionEngine
+    LONGTERM_ENGINE_AVAILABLE = True
+except ImportError:
+    try:
+        # Fallback to absolute import (for direct script usage)
+        from longterm_engine import SpacedRepetitionEngine
+        LONGTERM_ENGINE_AVAILABLE = True
+    except ImportError:
+        LONGTERM_ENGINE_AVAILABLE = False
+        SpacedRepetitionEngine = None
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -554,6 +571,367 @@ def get_card_stats(card_id: str) -> Dict[str, Any]:
     return reviewer.get_card_stats(card_id)
 
 
+# Long-term engine functions
+def get_spaced_repetition_engine(kb_name: str, data_dir: str = ".data") -> Any:
+    """
+    获取间隔重复算法引擎实例
+
+    Args:
+        kb_name: 知识库名称
+        data_dir: 数据目录
+
+    Returns:
+        SpacedRepetitionEngine实例
+    """
+    from .longterm_engine import SpacedRepetitionEngine
+    return SpacedRepetitionEngine(kb_name=kb_name, data_dir=data_dir)
+
+
+def initialize_engine_from_items(items: List[Dict[str, Any]],
+                                kb_name: str,
+                                data_dir: str = ".data",
+                                saved_states: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    从项目列表初始化引擎
+
+    Args:
+        items: 项目列表，每个项目包含'id', 'question', 'answer'
+        kb_name: 知识库名称
+        data_dir: 数据目录
+        saved_states: 可选保存的状态数据
+
+    Returns:
+        初始化结果
+    """
+    from .longterm_engine import SpacedRepetitionEngine
+    engine = SpacedRepetitionEngine(kb_name=kb_name, data_dir=data_dir)
+    return engine.initialize_from_items(items, saved_states)
+
+
+def handle_review_action_with_engine(item_id: str,
+                                    action: str,
+                                    kb_name: str,
+                                    data_dir: str = ".data") -> Dict[str, Any]:
+    """
+    使用引擎处理复习动作
+
+    Args:
+        item_id: 项目ID
+        action: 动作 ('recognized' 或 'forgotten')
+        kb_name: 知识库名称
+        data_dir: 数据目录
+
+    Returns:
+        动作处理结果
+    """
+    from .longterm_engine import SpacedRepetitionEngine
+    engine = SpacedRepetitionEngine(kb_name=kb_name, data_dir=data_dir)
+    return engine.handle_review_action(item_id, action)
+
+
+def get_review_state_from_engine(kb_name: str, data_dir: str = ".data") -> Dict[str, Any]:
+    """
+    从引擎获取复习状态
+
+    Args:
+        kb_name: 知识库名称
+        data_dir: 数据目录
+
+    Returns:
+        复习状态信息
+    """
+    from .longterm_engine import SpacedRepetitionEngine
+    engine = SpacedRepetitionEngine(kb_name=kb_name, data_dir=data_dir)
+    return engine.get_review_state()
+
+
+def export_review_data_from_engine(kb_name: str, data_dir: str = ".data") -> Dict[str, Any]:
+    """
+    从引擎导出复习数据
+
+    Args:
+        kb_name: 知识库名称
+        data_dir: 数据目录
+
+    Returns:
+        导出数据
+    """
+    from .longterm_engine import SpacedRepetitionEngine
+    engine = SpacedRepetitionEngine(kb_name=kb_name, data_dir=data_dir)
+    return engine.export_review_data()
+
+
+def reset_review_session_in_engine(kb_name: str, data_dir: str = ".data") -> Dict[str, Any]:
+    """
+    重置引擎中的复习会话
+
+    Args:
+        kb_name: 知识库名称
+        data_dir: 数据目录
+
+    Returns:
+        重置结果
+    """
+    from .longterm_engine import SpacedRepetitionEngine
+    engine = SpacedRepetitionEngine(kb_name=kb_name, data_dir=data_dir)
+    return engine.reset_review_session()
+
+
+# Task-required functions with specific signatures
+def get_review_engine(kb_name: str, force_new: bool = False, data_dir: str = ".data") -> Dict[str, Any]:
+    """
+    获取复习引擎（返回序列化的SpacedRepetitionEngine状态）
+
+    Args:
+        kb_name: 知识库名称
+        force_new: 是否强制创建新引擎
+        data_dir: 数据目录
+
+    Returns:
+        Dict[str, Any]: 序列化的引擎状态
+    """
+    try:
+        # Try to import SpacedRepetitionEngine
+        if not LONGTERM_ENGINE_AVAILABLE or SpacedRepetitionEngine is None:
+            return {
+                "success": False,
+                "error": "Long-term engine module not available",
+                "kb_name": kb_name
+            }
+
+        engine = SpacedRepetitionEngine(kb_name=kb_name, data_dir=data_dir)
+
+        if force_new:
+            # Clear engine state for force_new
+            engine.item_states.clear()
+            engine.dynamic_sequence.clear()
+            engine.mastered_items_count = 0
+            engine.total_items_count = 0
+            engine._save_state()
+
+            return {
+                "success": True,
+                "kb_name": kb_name,
+                "force_new": True,
+                "engine_state": engine.to_serializable() if hasattr(engine, 'to_serializable') else {},
+                "message": "New engine created (forced)"
+            }
+
+        # Return serialized engine state
+        serialized_state = engine.to_serializable() if hasattr(engine, 'to_serializable') else {
+            "item_states": {item_id: state.to_dict() for item_id, state in engine.item_states.items()},
+            "dynamic_sequence": engine.dynamic_sequence.copy(),
+            "mastered_items_count": engine.mastered_items_count,
+            "total_items_count": engine.total_items_count
+        }
+
+        return {
+            "success": True,
+            "kb_name": kb_name,
+            "force_new": False,
+            "engine_state": serialized_state,
+            "message": "Engine state retrieved successfully"
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to get review engine: {str(e)}",
+            "kb_name": kb_name
+        }
+
+
+def handle_review_action(kb_name: str, item_id: str, action: str) -> Dict[str, Any]:
+    """
+    处理复习动作（处理'recognized'或'forgotten'动作）
+
+    Args:
+        kb_name: 知识库名称
+        item_id: 项目ID
+        action: 动作类型 ('recognized' 或 'forgotten')
+
+    Returns:
+        Dict[str, Any]: 动作处理结果
+    """
+    if not LONGTERM_ENGINE_AVAILABLE or SpacedRepetitionEngine is None:
+        return {
+            "success": False,
+            "error": "Long-term engine module not available",
+            "kb_name": kb_name,
+            "item_id": item_id,
+            "action": action
+        }
+
+    try:
+        engine = SpacedRepetitionEngine(kb_name=kb_name)
+
+        # Handle the review action
+        result = engine.handle_review_action(item_id, action)
+
+        # Ensure the result has the expected format
+        if result.get("success", False):
+            return {
+                "success": True,
+                "kb_name": kb_name,
+                "item_id": item_id,
+                "action": action,
+                "result": result,
+                "message": f"Review action '{action}' processed successfully"
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.get("error", "Unknown error"),
+                "kb_name": kb_name,
+                "item_id": item_id,
+                "action": action
+            }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to handle review action: {str(e)}",
+            "kb_name": kb_name,
+            "item_id": item_id,
+            "action": action
+        }
+
+
+def get_review_state(kb_name: str) -> Dict[str, Any]:
+    """
+    获取复习状态：下一个项目、进度等
+
+    Args:
+        kb_name: 知识库名称
+
+    Returns:
+        Dict[str, Any]: 复习状态信息
+    """
+    if not LONGTERM_ENGINE_AVAILABLE or SpacedRepetitionEngine is None:
+        return {
+            "success": False,
+            "error": "Long-term engine module not available",
+            "kb_name": kb_name
+        }
+
+    try:
+        engine = SpacedRepetitionEngine(kb_name=kb_name)
+
+        # Get review state from engine
+        state = engine.get_review_state()
+
+        # Get next item
+        next_item = engine.get_next_item()
+
+        # Combine results
+        result = {
+            "success": True,
+            "kb_name": kb_name,
+            "state": state,
+            "next_item": next_item,
+            "progress": {
+                "total_items": engine.total_items_count,
+                "mastered_items": engine.mastered_items_count,
+                "remaining_items": len(engine.dynamic_sequence),
+                "completion_percentage": (engine.mastered_items_count / engine.total_items_count * 100)
+                    if engine.total_items_count > 0 else 0
+            }
+        }
+
+        return result
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to get review state: {str(e)}",
+            "kb_name": kb_name
+        }
+
+
+def export_review_data(kb_name: str) -> Dict[str, Any]:
+    """
+    导出复习数据，兼容原格式
+
+    Args:
+        kb_name: 知识库名称
+
+    Returns:
+        Dict[str, Any]: 导出数据
+    """
+    if not LONGTERM_ENGINE_AVAILABLE or SpacedRepetitionEngine is None:
+        return {
+            "success": False,
+            "error": "Long-term engine module not available",
+            "kb_name": kb_name
+        }
+
+    try:
+        engine = SpacedRepetitionEngine(kb_name=kb_name)
+
+        # Export data from engine
+        export_data = engine.export_review_data()
+
+        # Ensure compatibility with original format
+        compatible_data = {
+            "success": True,
+            "kb_name": kb_name,
+            "questionMap": export_data.get("questionMap", []),
+            "masteredItems": export_data.get("masteredItems", 0),
+            "totalItems": export_data.get("totalItems", 0),
+            "dynamicSequence": export_data.get("dynamicSequence", []),
+            "export_date": export_data.get("export_date", ""),
+            "compatible_format": True
+        }
+
+        return compatible_data
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to export review data: {str(e)}",
+            "kb_name": kb_name
+        }
+
+
+def reset_review_session(kb_name: str) -> Dict[str, Any]:
+    """
+    重置复习会话
+
+    Args:
+        kb_name: 知识库名称
+
+    Returns:
+        Dict[str, Any]: 重置结果
+    """
+    if not LONGTERM_ENGINE_AVAILABLE or SpacedRepetitionEngine is None:
+        return {
+            "success": False,
+            "error": "Long-term engine module not available",
+            "kb_name": kb_name
+        }
+
+    try:
+        engine = SpacedRepetitionEngine(kb_name=kb_name)
+
+        # Reset review session
+        reset_result = engine.reset_review_session()
+
+        return {
+            "success": True,
+            "kb_name": kb_name,
+            "reset_result": reset_result,
+            "message": "Review session reset successfully",
+            "new_sequence_length": len(engine.dynamic_sequence)
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to reset review session: {str(e)}",
+            "kb_name": kb_name
+        }
+
+
 if __name__ == "__main__":
     # 测试代码
     print("learning_reviewer 插件测试")
@@ -579,3 +957,12 @@ if __name__ == "__main__":
     # 获取到期卡片
     due_cards = reviewer.get_due_cards()
     print(f"到期卡片数量: {len(due_cards)}")
+
+    # 测试长时引擎
+    print("\n测试长时引擎:")
+    try:
+        from .longterm_engine import SpacedRepetitionEngine
+        engine = SpacedRepetitionEngine(kb_name="test_kb", data_dir=".data/test")
+        print(f"长时引擎创建成功: {engine.kb_name}")
+    except Exception as e:
+        print(f"长时引擎测试失败: {e}")

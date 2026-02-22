@@ -6,6 +6,14 @@ Serves frontend pages and static files.
 import os
 from flask import Blueprint, send_from_directory, current_app
 
+# Import plugin function
+try:
+    from plugin_core import call_plugin_func
+    PLUGIN_AVAILABLE = True
+except ImportError:
+    PLUGIN_AVAILABLE = False
+    call_plugin_func = None
+
 # Create main blueprint (no URL prefix for main routes)
 main_bp = Blueprint('main', __name__)
 
@@ -19,6 +27,17 @@ def serve_home():
 @main_bp.route('/review')
 def serve_review():
     """Serve the review page."""
+    # Call plugin to track review page access
+    if PLUGIN_AVAILABLE and call_plugin_func:
+        # Track page view as a successful review of a "page_access" card
+        call_plugin_func(
+            "learning_reviewer",
+            "update_card_review",
+            card_id="review_page_access",
+            success=True,
+            review_date=None  # Use current date
+        )
+
     return send_from_directory('templates', 'index.html')
 
 

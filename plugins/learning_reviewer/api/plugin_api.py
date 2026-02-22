@@ -186,3 +186,179 @@ def get_cards(kb_name: str, data_dir: Optional[str] = None) -> List[Dict[str, An
     """Get all cards from a loaded knowledge base."""
     plugin = get_plugin(data_dir)
     return plugin.get_cards(kb_name)
+
+
+# Long-term spaced repetition engine API functions
+def get_review_engine(kb_name: str, force_new: bool = False, data_dir: str = ".data") -> Dict[str, Any]:
+    """
+    Get review engine state.
+
+    Args:
+        kb_name: Knowledge base name
+        force_new: Whether to force creation of new engine
+        data_dir: Data directory path
+
+    Returns:
+        Dictionary with serialized engine state
+    """
+    from ..main import get_review_engine as _get_review_engine
+    return _get_review_engine(kb_name, force_new, data_dir)
+
+
+def handle_review_action(kb_name: str, item_id: str, action: str) -> Dict[str, Any]:
+    """
+    Handle review action ('recognized' or 'forgotten').
+
+    Args:
+        kb_name: Knowledge base name
+        item_id: Item ID
+        action: Action type ('recognized' or 'forgotten')
+
+    Returns:
+        Dictionary with action result
+    """
+    from ..main import handle_review_action as _handle_review_action
+    return _handle_review_action(kb_name, item_id, action)
+
+
+def get_review_state(kb_name: str) -> Dict[str, Any]:
+    """
+    Get review state: next item, progress, etc.
+
+    Args:
+        kb_name: Knowledge base name
+
+    Returns:
+        Dictionary with review state information
+    """
+    from ..main import get_review_state as _get_review_state
+    return _get_review_state(kb_name)
+
+
+def export_review_data(kb_name: str) -> Dict[str, Any]:
+    """
+    Export review data in compatible format.
+
+    Args:
+        kb_name: Knowledge base name
+
+    Returns:
+        Dictionary with exported review data
+    """
+    from ..main import export_review_data as _export_review_data
+    return _export_review_data(kb_name)
+
+
+def reset_review_session(kb_name: str) -> Dict[str, Any]:
+    """
+    Reset review session.
+
+    Args:
+        kb_name: Knowledge base name
+
+    Returns:
+        Dictionary with reset result
+    """
+    from ..main import reset_review_session as _reset_review_session
+    return _reset_review_session(kb_name)
+
+
+# Additional long-term engine functions
+def get_spaced_repetition_engine(kb_name: str, data_dir: str = ".data") -> Any:
+    """
+    Get spaced repetition engine instance.
+
+    Args:
+        kb_name: Knowledge base name
+        data_dir: Data directory path
+
+    Returns:
+        SpacedRepetitionEngine instance
+    """
+    from ..main import get_spaced_repetition_engine as _get_spaced_repetition_engine
+    return _get_spaced_repetition_engine(kb_name, data_dir)
+
+
+def initialize_engine_from_items(items: List[Dict[str, Any]],
+                                kb_name: str,
+                                data_dir: str = ".data",
+                                saved_states: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Initialize engine from items list.
+
+    Args:
+        items: List of items, each with 'id', 'question', 'answer'
+        kb_name: Knowledge base name
+        data_dir: Data directory path
+        saved_states: Optional saved state data
+
+    Returns:
+        Dictionary with initialization result
+    """
+    from ..main import initialize_engine_from_items as _initialize_engine_from_items
+    return _initialize_engine_from_items(items, kb_name, data_dir, saved_states)
+
+
+def handle_review_action_with_engine(item_id: str,
+                                    action: str,
+                                    kb_name: str,
+                                    data_dir: str = ".data") -> Dict[str, Any]:
+    """
+    Handle review action using engine.
+
+    Args:
+        item_id: Item ID
+        action: Action ('recognized' or 'forgotten')
+        kb_name: Knowledge base name
+        data_dir: Data directory path
+
+    Returns:
+        Dictionary with action result
+    """
+    from ..main import handle_review_action_with_engine as _handle_review_action_with_engine
+    return _handle_review_action_with_engine(item_id, action, kb_name, data_dir)
+
+
+def get_review_state_from_engine(kb_name: str, data_dir: str = ".data") -> Dict[str, Any]:
+    """
+    Get review state from engine.
+
+    Args:
+        kb_name: Knowledge base name
+        data_dir: Data directory path
+
+    Returns:
+        Dictionary with review state information
+    """
+    from ..main import get_review_state_from_engine as _get_review_state_from_engine
+    return _get_review_state_from_engine(kb_name, data_dir)
+
+
+def export_review_data_from_engine(kb_name: str, data_dir: str = ".data") -> Dict[str, Any]:
+    """
+    Export review data from engine.
+
+    Args:
+        kb_name: Knowledge base name
+        data_dir: Data directory path
+
+    Returns:
+        Dictionary with exported data
+    """
+    from ..main import export_review_data_from_engine as _export_review_data_from_engine
+    return _export_review_data_from_engine(kb_name, data_dir)
+
+
+def reset_review_session_in_engine(kb_name: str, data_dir: str = ".data") -> Dict[str, Any]:
+    """
+    Reset review session in engine.
+
+    Args:
+        kb_name: Knowledge base name
+        data_dir: Data directory path
+
+    Returns:
+        Dictionary with reset result
+    """
+    from ..main import reset_review_session_in_engine as _reset_review_session_in_engine
+    return _reset_review_session_in_engine(kb_name, data_dir)

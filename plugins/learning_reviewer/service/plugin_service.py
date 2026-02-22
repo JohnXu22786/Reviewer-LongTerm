@@ -486,3 +486,146 @@ class LearningReviewerPlugin:
     def _error_response(self, message: str) -> Dict[str, Any]:
         """Error response."""
         return {"error": message, "success": False}
+
+    # Long-term review engine service methods
+    def get_review_engine(self, kb_name: str, force_new: bool = False) -> Dict[str, Any]:
+        """
+        Get review engine state.
+
+        Args:
+            kb_name: Knowledge base name
+            force_new: Whether to force creation of new engine
+
+        Returns:
+            Dictionary with serialized engine state
+        """
+        try:
+            # Import from main module
+            from ..main import get_review_engine as _get_review_engine
+            return _get_review_engine(kb_name, force_new, self.data_dir)
+        except Exception as e:
+            return self._handle_error(f"Failed to get review engine for {kb_name}", e)
+
+    def handle_review_action(self, kb_name: str, item_id: str, action: str) -> Dict[str, Any]:
+        """
+        Handle review action.
+
+        Args:
+            kb_name: Knowledge base name
+            item_id: Item ID
+            action: Action type ('recognized' or 'forgotten')
+
+        Returns:
+            Dictionary with action result
+        """
+        try:
+            # Import from main module
+            from ..main import handle_review_action as _handle_review_action
+            return _handle_review_action(kb_name, item_id, action)
+        except Exception as e:
+            return self._handle_error(f"Failed to handle review action for {kb_name}/{item_id}", e)
+
+    def get_review_state(self, kb_name: str) -> Dict[str, Any]:
+        """
+        Get review state.
+
+        Args:
+            kb_name: Knowledge base name
+
+        Returns:
+            Dictionary with review state information
+        """
+        try:
+            # Import from main module
+            from ..main import get_review_state as _get_review_state
+            return _get_review_state(kb_name)
+        except Exception as e:
+            return self._handle_error(f"Failed to get review state for {kb_name}", e)
+
+    def export_review_data(self, kb_name: str) -> Dict[str, Any]:
+        """
+        Export review data.
+
+        Args:
+            kb_name: Knowledge base name
+
+        Returns:
+            Dictionary with exported review data
+        """
+        try:
+            # Import from main module
+            from ..main import export_review_data as _export_review_data
+            return _export_review_data(kb_name)
+        except Exception as e:
+            return self._handle_error(f"Failed to export review data for {kb_name}", e)
+
+    def reset_review_session(self, kb_name: str) -> Dict[str, Any]:
+        """
+        Reset review session.
+
+        Args:
+            kb_name: Knowledge base name
+
+        Returns:
+            Dictionary with reset result
+        """
+        try:
+            # Import from main module
+            from ..main import reset_review_session as _reset_review_session
+            return _reset_review_session(kb_name)
+        except Exception as e:
+            return self._handle_error(f"Failed to reset review session for {kb_name}", e)
+
+    def get_next_review_item(self, kb_name: str) -> Dict[str, Any]:
+        """
+        Get next review item.
+
+        Args:
+            kb_name: Knowledge base name
+
+        Returns:
+            Dictionary with next item information
+        """
+        try:
+            # Import from main module
+            from ..main import get_next_review_item as _get_next_review_item
+            return _get_next_review_item(kb_name)
+        except Exception as e:
+            return self._handle_error(f"Failed to get next review item for {kb_name}", e)
+
+    def update_item_state(self, kb_name: str, item_id: str, new_state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update item state.
+
+        Args:
+            kb_name: Knowledge base name
+            item_id: Item ID
+            new_state: New state data
+
+        Returns:
+            Dictionary with update result
+        """
+        try:
+            # Import from main module
+            from ..main import update_item_state as _update_item_state
+            return _update_item_state(kb_name, item_id, new_state)
+        except Exception as e:
+            return self._handle_error(f"Failed to update item state for {kb_name}/{item_id}", e)
+
+    def get_item_state(self, kb_name: str, item_id: str) -> Dict[str, Any]:
+        """
+        Get item state.
+
+        Args:
+            kb_name: Knowledge base name
+            item_id: Item ID
+
+        Returns:
+            Dictionary with item state information
+        """
+        try:
+            # Import from main module
+            from ..main import get_item_state as _get_item_state
+            return _get_item_state(kb_name, item_id)
+        except Exception as e:
+            return self._handle_error(f"Failed to get item state for {kb_name}/{item_id}", e)

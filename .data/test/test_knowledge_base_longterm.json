@@ -1,0 +1,27 @@
+{
+  "kb_name": "test_knowledge_base.json",
+  "cards": {
+    "test_card_123": {
+      "id": "test_card_123",
+      "total_reviews": 1,
+      "correct_reviews": 1,
+      "incorrect_reviews": 0,
+      "last_reviewed": "2026-02-20",
+      "interval": 3,
+      "due_date": "2026-02-23",
+      "created": "2026-02-20T23:10:24.868363"
+    },
+    "test_card_456": {
+      "id": "test_card_456",
+      "total_reviews": 1,
+      "correct_reviews": 1,
+      "incorrect_reviews": 0,
+      "last_reviewed": "2026-02-20",
+      "interval": 3,
+      "due_date": "2026-02-23",
+      "created": "2026-02-20T23:10:24.869641"
+    }
+  },
+  "created": "2026-02-20T23:10:24.868304",
+  "updated": "2026-02-20T23:10:24.869665"
+}

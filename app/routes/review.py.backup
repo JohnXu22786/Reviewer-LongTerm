@@ -1,0 +1,200 @@
+"""
+Review API routes for Reviewer Intense.
+
+Handles review actions and state management, implementing the
+"algorithm logic in Python" architecture requirement.
+
+This cleaned version follows the core principle: for files that exist
+in both Reviewer-LongTerm and Reviewer-Intense, the extended version
+only adds imports and call_plugin_func() calls.
+"""
+
+import os
+import json
+import logging
+from flask import Blueprint, request, jsonify, current_app, session
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Import plugin function
+try:
+    from plugin_core import call_plugin_func
+    PLUGIN_AVAILABLE = True
+    logger.info("Plugin system available. Long-term storage enabled.")
+except ImportError:
+    PLUGIN_AVAILABLE = False
+    call_plugin_func = None
+    logger.warning("Plugin system not available. Long-term storage disabled.")
+
+# Create review blueprint
+review_bp = Blueprint('review', __name__, url_prefix='/api')
+
+# No state manager needed for one-time program
+
+@review_bp.route('/review/state', methods=['GET'])
+def get_review_state():
+    """Get current review state."""
+    try:
+        knowledge_file = request.args.get('file')
+        if not knowledge_file:
+            return jsonify({"error": "File parameter required"}), 400
+
+        # Get new_session parameter (default false)
+        new_session_param = request.args.get('new_session', 'false').lower()
+        force_new = new_session_param in ('true', '1', 'yes')
+
+        # Call plugin function
+        if PLUGIN_AVAILABLE and call_plugin_func:
+            plugin_result = call_plugin_func(
+                "learning_reviewer",
+                "get_review_state",
+                kb_name=knowledge_file
+            )
+            return jsonify(plugin_result)
+
+        # Plugin not available
+        return jsonify({"error": "Plugin system not available", "success": False}), 500
+
+    except Exception as e:
+        error_msg = f"Failed to get review state: {type(e).__name__}: {str(e)}"
+        print(f"API Error in get_review_state: {repr(error_msg)}")
+        return jsonify({"error": error_msg}), 500
+
+
+@review_bp.route('/review/action', methods=['POST'])
+def handle_review_action():
+    """Handle a review action (recognized or forgotten)."""
+    try:
+        data = request.get_json()
+        knowledge_file = data.get('file')
+        item_id = data.get('item_id')
+        action = data.get('action')  # 'recognized' or 'forgotten'
+
+        if not knowledge_file:
+            return jsonify({"error": "File parameter required"}), 400
+        if not item_id:
+            return jsonify({"error": "Item ID required"}), 400
+        if action not in ['recognized', 'forgotten']:
+            return jsonify({"error": "Action must be 'recognized' or 'forgotten'"}), 400
+
+        # Call plugin function
+        if PLUGIN_AVAILABLE and call_plugin_func:
+            plugin_result = call_plugin_func(
+                "learning_reviewer",
+                "handle_review_action",
+                kb_name=knowledge_file,
+                item_id=item_id,
+                action=action
+            )
+            return jsonify(plugin_result)
+
+        # Plugin not available
+        return jsonify({
+            "success": False,
+            "error": "Plugin system not available",
+            "next_item": None,
+            "updated_state": {},
+            "mastered": False,
+            "remaining_items": 0,
+            "total_mastered": 0,
+            "total_items": 0,
+            "sequence_updated": False,
+            "progress": {}
+        })
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        error_msg = f"Failed to handle review action: {type(e).__name__}: {str(e)}"
+        print(f"API Error in handle_review_action: {repr(error_msg)}")
+        return jsonify({"error": error_msg}), 500
+
+
+@review_bp.route('/review/reset', methods=['POST'])
+def reset_review_state():
+    """Reset review session for a knowledge base file (one-time program)."""
+    try:
+        data = request.get_json()
+        knowledge_file = data.get('file')
+
+        if not knowledge_file:
+            return jsonify({"error": "File parameter required"}), 400
+
+        # Call plugin function
+        if PLUGIN_AVAILABLE and call_plugin_func:
+            plugin_result = call_plugin_func(
+                "learning_reviewer",
+                "reset_review_session",
+                kb_name=knowledge_file
+            )
+
+            if plugin_result and plugin_result.get("success"):
+                return jsonify({
+                    "success": True,
+                    "message": f"Session reset for {knowledge_file}. Next load will start fresh."
+                })
+
+        # Clear session cache for this knowledge file
+        items_key = f'review_items_{knowledge_file}'
+        engine_key = f'review_engine_{knowledge_file}'
+
+        if items_key in session:
+            del session[items_key]
+        if engine_key in session:
+            del session[engine_key]
+
+        return jsonify({
+            "success": True,
+            "message": f"Session reset for {knowledge_file}. Next load will start fresh."
+        })
+
+    except Exception as e:
+        error_msg = f"Failed to reset review session: {type(e).__name__}: {str(e)}"
+        print(f"API Error in reset_review_state: {repr(error_msg)}")
+        return jsonify({"error": error_msg}), 500
+
+
+@review_bp.route('/review/export-data', methods=['GET'])
+def get_export_data():
+    """Get review data for export (matches original localStorage format)."""
+    try:
+        knowledge_file = request.args.get('file')
+        if not knowledge_file:
+            return jsonify({"error": "File parameter required"}), 400
+
+        # Call plugin function
+        if PLUGIN_AVAILABLE and call_plugin_func:
+            plugin_result = call_plugin_func(
+                "learning_reviewer",
+                "export_review_data",
+                kb_name=knowledge_file
+            )
+
+            if plugin_result and plugin_result.get("success"):
+                return jsonify({
+                    "success": True,
+                    "data": {
+                        "questionMap": plugin_result.get("questionMap", []),
+                        "masteredItems": plugin_result.get("masteredItems", 0),
+                        "totalItems": plugin_result.get("totalItems", 0),
+                        "dynamicSequence": plugin_result.get("dynamicSequence", [])
+                    }
+                })
+
+        # Plugin not available - return empty data
+        return jsonify({
+            "success": True,
+            "data": {
+                "questionMap": [],
+                "masteredItems": 0,
+                "totalItems": 0,
+                "dynamicSequence": []
+            }
+        })
+
+    except Exception as e:
+        error_msg = f"Failed to get export data: {type(e).__name__}: {str(e)}"
+        print(f"API Error in get_export_data: {repr(error_msg)}")
+        return jsonify({"error": error_msg}), 500

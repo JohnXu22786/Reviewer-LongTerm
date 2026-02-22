@@ -172,7 +172,7 @@ class _PluginManager:
             os.makedirs(plugins_dir, exist_ok=True)
 
     def _discover_plugins(self) -> None:
-        """Discover available plugins in plugins directory (root only)."""
+        """Discover available plugins in plugins directory (including subdirectories)."""
         with self._lock:
             if self._initialized:
                 return
@@ -185,31 +185,79 @@ class _PluginManager:
                 self._initialized = True
                 return
 
-            # Scan only the root plugins directory
-            for file in os.listdir(plugins_dir):
-                if file.endswith('.py') and file != '__init__.py':
-                    file_path = os.path.join(plugins_dir, file)
-                    # Module name is the filename without .py
-                    module_name = file[:-3]
+            # Scan recursively for plugins (both .py files and packages)
+            for root, dirs, files in os.walk(plugins_dir):
+                # Skip __pycache__ directories
+                dirs[:] = [d for d in dirs if d != '__pycache__']
+
+                # Check for Python packages (directories with __init__.py)
+                if '__init__.py' in files:
+                    # This is a Python package
+                    rel_path = os.path.relpath(root, plugins_dir)
+                    if rel_path == '.':
+                        # Root package - skip as we want submodules
+                        continue
+                    # Convert path separators to dots for module name
+                    module_name = rel_path.replace(os.sep, '.')
                     self._discovered_modules.add(module_name)
+                    logger.debug(f"Discovered package: {module_name}")
+
+                # Also scan for .py files (individual modules)
+                for file in files:
+                    if file.endswith('.py') and file != '__init__.py':
+                        # Get relative path from plugins_dir
+                        rel_path = os.path.relpath(os.path.join(root, file), plugins_dir)
+                        # Convert path separators to dots and remove .py extension
+                        module_name = rel_path[:-3].replace(os.sep, '.')
+                        self._discovered_modules.add(module_name)
+                        logger.debug(f"Discovered module: {module_name}")
 
             self._initialized = True
 
     def _import_module_with_fallback(self, module_name: str) -> Optional[ModuleType]:
         """
-        Import a plugin module from file.
+        Import a plugin module (could be a .py file or a package).
 
-        Uses direct file import strategy only (most reliable).
+        Supports both individual .py files and Python packages (directories with __init__.py).
         """
         plugins_dir = self.get_plugins_directory()
+
+        # First check if it's a package (directory with __init__.py)
+        package_path = os.path.join(plugins_dir, module_name.replace('.', os.sep))
+        init_file = os.path.join(package_path, '__init__.py')
+
+        if os.path.exists(init_file):
+            # It's a package - use standard import
+            try:
+                logger.debug(f"Importing package: {module_name}")
+                # Import using standard Python import mechanism
+                full_module_name = f"plugins.{module_name}"
+                module = importlib.import_module(full_module_name)
+                return module
+            except ImportError as e:
+                logger.error(f"Failed to import package {module_name}: {e}")
+                return None
+            except Exception as e:
+                logger.error(f"Unexpected error importing package {module_name}: {e}")
+                return None
+
+        # Check if it's a .py file (could be a submodule like learning_reviewer.main)
+        # First try the simple path (for top-level modules)
         file_path = os.path.join(plugins_dir, module_name + '.py')
 
-        if not os.path.exists(file_path):
-            logger.error(f"No plugin file found for module: {module_name}")
-            return None
+        if not os.path.exists(file_path) and '.' in module_name:
+            # Might be a submodule like learning_reviewer.main
+            # Convert dots to path separators and add .py
+            file_path = os.path.join(plugins_dir, module_name.replace('.', os.sep) + '.py')
 
-        # Use direct file import strategy only
-        return self._import_from_file(module_name, file_path)
+        if os.path.exists(file_path):
+            # It's a .py file - use direct file import
+            logger.debug(f"Importing module file: {module_name}")
+            return self._import_from_file(module_name, file_path)
+
+        # Not found as either package or file
+        logger.error(f"Plugin not found (neither package nor .py file): {module_name}")
+        return None
 
 
     def _import_from_file(self, module_name: str, file_path: str) -> Optional[ModuleType]:

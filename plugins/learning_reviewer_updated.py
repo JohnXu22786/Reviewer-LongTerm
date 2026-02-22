@@ -154,6 +154,121 @@ try:
 
         return result
 
+    def get_engine_compatible_state(kb_name: str, data_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Get plugin state in engine-compatible format.
+
+        Returns the same format as _get_plugin_state_for_engine() in review.py.
+        This replaces the conversion logic in the core program.
+        """
+        print(f"[PLUGIN] get_engine_compatible_state: {kb_name}, data_dir={data_dir}")
+
+        # Get cards from plugin
+        plugin_cards = get_cards(kb_name, data_dir)
+
+        if not plugin_cards:
+            return None
+
+        # Convert plugin card states to engine format
+        question_map = []
+        mastered_items = 0
+        dynamic_sequence = []
+
+        for card in plugin_cards:
+            card_id = card.get('id')
+            if not card_id:
+                continue
+
+            # Extract long-term parameters
+            long_term_params = card.get('longTermParams', {})
+            review_count = long_term_params.get('reviewCount', 0)
+            consecutive_correct = long_term_params.get('consecutiveCorrect', 0)
+            learning_step = long_term_params.get('learningStep', 0)
+            mastered = long_term_params.get('mastered', False)
+            wrong_count = long_term_params.get('wrongCount', 0)
+            correct_count = long_term_params.get('correctCount', 0)
+
+            # Create engine-compatible state entry
+            # Note: question and answer fields are left empty - engine will fill from knowledge base
+            state_data = {
+                'id': card_id,
+                'question': '',  # Will be filled by engine from knowledge base
+                'answer': '',    # Will be filled by engine from knowledge base
+                '_reviewCount': review_count,
+                '_consecutiveCorrect': consecutive_correct,
+                '_learningStep': learning_step,
+                '_mastered': mastered,
+                '_wrongCount': wrong_count,
+                '_correctCount': correct_count
+            }
+
+            question_map.append([card_id, state_data])
+
+            if mastered:
+                mastered_items += 1
+            else:
+                # Add non-mastered items to dynamic sequence
+                dynamic_sequence.append(card_id)
+
+        return {
+            'questionMap': question_map,
+            'masteredItems': mastered_items,
+            'totalItems': len(plugin_cards),
+            'dynamicSequence': dynamic_sequence
+        }
+
+    def initialize_plugin(app_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Initialize plugin with application configuration.
+
+        Args:
+            app_config: Flask app configuration dictionary
+
+        Returns:
+            Success status and initialization details
+        """
+        print(f"[PLUGIN] initialize_plugin: config keys = {list(app_config.keys())}")
+
+        # Extract knowledge directory from config
+        knowledge_dir = app_config.get('KNOWLEDGE_DIR', 'D:\\knowledge_bases')
+
+        # Create .data directory for plugin storage
+        plugin_data_dir = os.path.join(knowledge_dir, '.data')
+        os.makedirs(plugin_data_dir, exist_ok=True)
+
+        # Configure plugin directory (assuming plugins are in default location)
+        # Note: The plugin system auto-discovers plugins in plugins/ directory
+
+        return {
+            "success": True,
+            "knowledge_dir": knowledge_dir,
+            "plugin_data_dir": plugin_data_dir,
+            "message": "Plugin initialized successfully"
+        }
+
+    def handle_review_action(kb_name: str, card_id: str, action: str,
+                           data_dir: Optional[str] = None) -> Dict[str, Any]:
+        """Unified interface for review actions.
+
+        Args:
+            kb_name: Knowledge base file name
+            card_id: Card ID
+            action: 'recognized' or 'forgotten'
+            data_dir: Plugin data directory
+
+        Returns:
+            Plugin operation result
+        """
+        print(f"[PLUGIN] handle_review_action: {kb_name}, {card_id}, action={action}, data_dir={data_dir}")
+
+        if action == 'recognized':
+            return handle_remember_action(kb_name, card_id, data_dir)
+        elif action == 'forgotten':
+            return handle_forget_action(kb_name, card_id, data_dir)
+        else:
+            return {
+                "success": False,
+                "error": f"Invalid action: {action}. Must be 'recognized' or 'forgotten'"
+            }
+
 except ImportError as e:
     print(f"[DEBUG] Failed to import learning_reviewer plugin: {e}")
 
@@ -228,7 +343,10 @@ __all__ = [
     'handle_remember_action',
     'handle_forget_action',
     'get_cards',
-    'get_statistics'
+    'get_statistics',
+    'get_engine_compatible_state',
+    'initialize_plugin',
+    'handle_review_action'
 ]
 
 
